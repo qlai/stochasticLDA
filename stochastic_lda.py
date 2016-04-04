@@ -90,7 +90,7 @@ class SVILDA():
 			for n, word in enumerate(newdoc):
 				for k in range(self._K):
 
-					phi_d[k][n] = expElogtheta_d[k] * self._expElogbeta_d[k][word]
+					phi_d[k][n] = expElogtheta_d[k] * self._expElogbeta_d[k][n.argmax(word)]
 
 			gamma_new = self._alpha + n.sum(phi_d, axis = 1)
 			meanchange = n.mean(abs(gamma_d - gammanew))
@@ -105,7 +105,7 @@ class SVILDA():
 		newdoc = np.asarray(newdoc)
 		return phi_d, newdoc
 
-	def updateGlobal(self, phi_d, doc):(
+	def updateGlobal(self, phi_d, doc):
 			lambda_d = n.zeros(self._K, self._V)
 	
 			for k in range(self._K):
@@ -123,15 +123,15 @@ class SVILDA():
 
 	
 	
-		def runSVI(self):
-			parseddocs = {}
-			while i in range(MAXITER):
-				randint = random.randint(0, self._D)
-				if not parseddocs[self._docs[randint]]:
-					parseDocument(docs[randint], self._vocab)
-				doc = parseddocs[self._docs[randint]]
-				phi_doc, newdoc = self.updateLocal(parseddocs[self._docs[randint]])
-				self.updateGlobal(phi_doc, newdoc)
+	def runSVI(self):
+		parseddocs = {}
+		while i in range(MAXITER):
+			randint = random.randint(0, self._D)
+			if not parseddocs[self._docs[randint]]:
+				parseDocument(docs[randint], self._vocab)
+			doc = parseddocs[self._docs[randint]]
+			phi_doc, newdoc = self.updateLocal(parseddocs[self._docs[randint]])
+			self.updateGlobal(phi_doc, newdoc)
 
 
 
