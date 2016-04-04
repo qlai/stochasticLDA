@@ -11,6 +11,6 @@ Based on the following papers:
 
 For classwork, work in progress...
 
--[x] Basic initial implementation
--[ ] Debug for common corpus
--[ ] Run on own data
+- [x] Basic initial implementation
+- [ ] Debug for common corpus
+- [ ] Run on own data
