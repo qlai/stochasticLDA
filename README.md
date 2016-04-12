@@ -8,9 +8,14 @@ Based on the following papers:
 - [Stochastic Variational Inference](http://www.columbia.edu/~jwp2128/Papers/HoffmanBleiWangPaisley2013.pdf) by Matthew D. Hoffman, David M. Blei, Chong Wang and John Paisley
 
 
+###How to Use
+See 'Help' using
+```python stochastic_lda.py -h```
+
 
 For classwork, work in progress...
 
 - [x] Basic initial implementation
-- [ ] Debug for common corpus
+- [x] Debug for common corpus
+- [x] Support Command-Line Usage for user-defined test mode and normal mode
 - [ ] Run on own data

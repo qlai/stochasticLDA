@@ -1,13 +1,13 @@
-import sys, re, time, string, random, csv
+import sys, re, time, string, random, csv, argparse
 import numpy as n
 from scipy.special import gammaln, psi
 from nltk.tokenize import wordpunct_tokenize
 from utils import *
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 n.random.seed(10000001)
 meanchangethresh = 1e-6
-MAXITER = 1000
+MAXITER = 10000
 
 
 def dirichlet_expectation(alpha):
@@ -17,7 +17,7 @@ def dirichlet_expectation(alpha):
 	return (psi(alpha) - psi(n.sum(alpha)))
 
 
-def parseDocument(doc, vocab):
+def parseDocument(doc, vocab, vectorize = True):
 	wordslist = list()
 	countslist = list()
 	doc = doc.lower()
@@ -34,18 +34,20 @@ def parseDocument(doc, vocab):
 
 	wordslist.append(dictionary.keys())
 	countslist.append(dictionary.values())
-	# print wordslist
-	# print countslist
-	wordslistVectors = []
+	if vectorize == True: #returns words as binary vectors 
+		wordslistVectors = []
 
-	for word in wordslist[0]:
-		# print word
-		wordvector = n.zeros(len(vocab))
-		wordvector[word] = 1
-		# print wordvector.argmax()
-		wordslistVectors.append(wordvector)
+		for word in wordslist[0]:
+			# print word
+			wordvector = n.zeros(len(vocab))
+			wordvector[word] = 1
+			# print wordvector.argmax()
+			wordslistVectors.append(wordvector)
 
-	return (wordslistVectors, countslist[0])
+		return (wordslistVectors, countslist[0])
+
+	elif vectorize == False: #returns words with their id
+		return (wordslist[0], countslist[0])
 
 def getVocab(file):
 	'''getting vocab dictionary from a csv file (nostopwords)'''
@@ -59,7 +61,7 @@ def getVocab(file):
 
 
 class SVILDA():
-	def __init__(self, vocab, K, D, alpha, eta, tau, kappa, docs):
+	def __init__(self, vocab, K, D, alpha, eta, tau, kappa, docs, iterations, parsed = False):
 		self._vocab = vocab
 		self._V = len(vocab)
 		self._K = K
@@ -68,24 +70,19 @@ class SVILDA():
 		self._eta = eta
 		self._tau = tau
 		self._kappa = kappa
-		self._updatect = 0
-		self.lambdas = []
+		# self._updatect = 0
 		self._lambda = 1* n.random.gamma(100., 1./100., (self._K, self._V))
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
 		self._docs = docs
 		self.ct = 0
-		self.lambdas = {}
-		for i in range(K):
-			self.lambdas[i] = []
-			self.lambdas[i].append(self._lambda[i][0])
-		# print self._lambda
-		# print type(self._lambda)
+		self._iterations = iterations
+		self._parsed = parsed
 		print self._lambda.shape
 
 
 	def updateLocal(self, doc): #word_dn is an indicator variable with dimension V
-		print "updating local parameters"
+		# print "updating local parameters"
 		(words, counts) = doc
 		# print len(words), len(counts)
 		newdoc = []
@@ -95,100 +92,167 @@ class SVILDA():
 		gamma_d = n.ones(self._K)
 		Elogtheta_d = dirichlet_expectation(gamma_d)
 		expElogtheta_d = n.exp(Elogtheta_d)
-		# expElogbeta_d = self._expElogbeta(:, words)
 		for i, item in enumerate(counts):
-			# print i, item
 			for j in range(item):
 				newdoc.append(words[i])
 		assert len(newdoc) == N_d, "error"
 
-		for i in range(MAXITER):
-			# print i
+		for i in range(self._iterations):
 			for m, word in enumerate(newdoc):
-				# print word, n.argmax(word)
-				for k in range(self._K):
 
+				for k in range(self._K):
+					# print m, k, expElogtheta_d[k]* self._expElogbeta[k][n.argmax(word)]
 					phi_d[k][m] = expElogtheta_d[k] * self._expElogbeta[k][n.argmax(word)]
-			# print phi_d
-			# print n.sum(phi_d, axis = 1).size
+			# print n.sum(phi_d, axis = 1)
+
 			gamma_new = self._alpha + n.sum(phi_d, axis = 1)
+			# print phi_d
 			meanchange = n.mean(abs(gamma_d - gamma_new))
-			# print gamma_d, gamma_new, meanchange
-			# print i, meanchange
 			if (meanchange < meanchangethresh):
 				break
 
 			gamma_d = gamma_new
 			Elogtheta_d = dirichlet_expectation(gamma_d)
 			expElogtheta_d = n.exp(Elogtheta_d)
-			# expElogbeta_d = self._expElogbeta[:, words]
 
 		newdoc = n.asarray(newdoc)
 		return phi_d, newdoc
 
 	def updateGlobal(self, phi_d, doc):
-			print 'updating global parameters'
-			# print phi_d
+			# print 'updating global parameters'
 			lambda_d = n.zeros((self._K, self._V))
+
 			for k in range(self._K):
 				phi_dk = n.zeros(self._V)
-				for m in range(len(doc)):
-					# print phi_d[k][m], doc[m][n.argmax(doc[m])]
-					phi_dk += phi_d[k][m] * doc[m] 
-				
-				# print n.sum(phi_dk)
 
-				lambda_d[k] = self._eta + 1e10 * phi_dk
-				# print lambda_d[k]
+				for m in range(len(doc)):
+					phi_dk += phi_d[k][m] * doc[m] 
+
+				lambda_d[k] = self._eta + self._D * phi_dk
+			# print lambda_d
 			rho = (self.ct + self._tau) **(-self._kappa)
 			self._lambda = (1-rho) * self._lambda + rho * lambda_d
+			# print self._lambda
 			self._Elogbeta = dirichlet_expectation(self._lambda)
 			self._expElogbeta = n.exp(self._Elogbeta)
-			# print self._lambda
-			# print "lambda shape ", self._lambda.shape
-			# self.lambdas.append(self._lambda)
-			for i in range(self._K):
-				self.lambdas[i].append(self._lambda[i][0])
 
 	
 	
 	def runSVI(self):
-		parseddocs = {}
-		for i in range(MAXITER):
-			
-			randint = random.randint(0, self._D)
+
+		for i in range(self._iterations):			
+			randint = random.randint(0, self._D-1)
 			print "ITERATION", i, " running document number ", randint
-			if str(randint) not in parseddocs.keys():
-				# print self._docs[randint]
-				parseddocs[str(randint)] = parseDocument(self._docs[randint],self._vocab)
+			if self._parsed == False:
+				doc = parseDocument(self._docs[randint],self._vocab)
+				phi_doc, newdoc = self.updateLocal(doc)
+				self.updateGlobal(phi_doc, newdoc)
+				self.ct += 1
+			# if self._parsed == True:
+			# 	doc = self._docs[0][randint]
 
-			doc = parseddocs[str(randint)]
-			phi_doc, newdoc = self.updateLocal(parseddocs[str(randint)])
-			self.updateGlobal(phi_doc, newdoc)
-			self.ct += 1
-		# return self.lambdas
 
-allmydocs = getalldocs()
-vocab = getVocab("dictionary.csv")
 
-testset = SVILDA(vocab = vocab, K = 11, D = 275, alpha = 0.1, eta = 0.1, tau = 1024, kappa = 0.7, docs = allmydocs)
-testset.runSVI()
-yy = testset.lambdas
-# print yy
-finallambda = testset._lambda
-# xx = n.arange(0, MAXITER+1)
-# print len(xx), len(yy[0])
-# # (a, b) = yy[0].shape
-# for i in range(11):
-# 	plt.plot(xx, yy[i])
-# 	plt.show()
+	def getTopics(self, docs = None):
+		prob_words = n.sum(self._lambda, axis = 0)
+		prob_topics = n.sum(self._lambda, axis = 1)
+		prob_topics = prob_topics/n.sum(prob_topics)
+		print prob_topics
 
-for i in range(11):
-	bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i][j])
-	print i
-	for k, word in enumerate(bestwords):
-		print word, vocab.keys()[vocab.values().index(word)]
-		if k >= 10:
-			break
+		if docs == None:
+			docs = self._docs
+		results = n.zeros((len(docs), self._K))
+		for i, doc in enumerate(docs):
+			parseddoc = parseDocument(doc, self._vocab, vectorize = False)
+
+			for j in range(self._K):
+				aux = [self._lambda[j][word]/prob_words[word] for word in parseddoc[0]]
+				# print aux
+				doc_probability = [n.log(aux[k]) * parseddoc[1][k] for k in range(len(aux))]
+				# print doc_probability
+				results[i][j] = sum(doc_probability) + n.log(prob_topics[j])
+		finalresults = n.zeros(len(docs))
+		for k in range(len(docs)):
+			finalresults[k] = n.argmax(results[k])
+		print finalresults
+		return finalresults
+
+			
+
+
+
+def test(k):
+
+	allmydocs = getalldocs()
+	vocab = getVocab("dictionary.csv")
+	testset = SVILDA(vocab = vocab, K = k, D = 943, alpha = 0.2, eta = 0.2, tau = 1024, kappa = 0.7, docs = allmydocs, iterations= MAXITER)
+	testset.runSVI()
+
+	finallambda = testset._lambda
+
+	with open("results.csv", "a") as f:
+		writer = csv.writer(f)
+		for i in range(k):
+			bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i][j])
+			writer.writerow([i])
+			for k, word in enumerate(bestwords):
+				writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
+				if k >= 15:
+					break
+	topics = testset.getTopics()
+
+
+	with open("raw.txt", "w+") as f:
+		# f.write(finallambda)
+		for result in topics:
+			f.write(str(result) + " \n")
+
+
+def main():
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-K','--topics', help='number of topics, defaults to 10',required=True)
+	parser.add_argument('-m','--mode', help='mode, test | normal',required=True)
+	parser.add_argument('-v','--vocab', help='Vocab file name, .csv', default = "dictionary.csv", required=False)
+	parser.add_argument('-d','--docs', help='file with list of docs, .txt', default = "alldocs.txt", required=False)
+	parser.add_argument('-a','--alpha', help='alpha parameter, defaults to 0.2',default = 0.2, required=False)
+	parser.add_argument('-e','--eta', help='eta parameter, defaults to 0.2',default= 0.2, required=False)
+	parser.add_argument('-t','--tau', help='tau parameter, defaults to 0.7',default= 0.7, required=False)
+	parser.add_argument('-k','--kappa', help='kappa parameter, defaults to 1024',default = 1024, required=False)
+	parser.add_argument('-n','--iterations', help='number of iterations, defaults to 10000',default = 10000, required=False)
+	
+	args = parser.parse_args()
+
+	#print args.output
+
+	mode = str(args.mode)
+	vocab = str(args.vocab)
+	K = int(args.topics)
+	alpha = args.alpha
+	eta = args.eta
+	tau = args.tau
+	kappa = args.kappa
+	iterations = args.iterations
+
+	if mode == "test":
+		test(K)
+	if mode == "normal":
+		assert vocabfile is not None, "no vocab"
+		assert docs is not None, "no docs"
+		D = len(docs)
+		docs = getalldocs(docs)
+		vocab = getVocab(vocabfile)
+		lda = SVILDA(vocab = vocab, K = K, D = D, alpha = alpha, eta = eta, tau = tau, kappa = kappa, docs = docs, iterations = iterations)
+		lda.runSVI()
+
+		return lda #returns SVILDA class
+
+
+
+	
+
+
+
+if __name__ == '__main__':
+	main()
 
 		
