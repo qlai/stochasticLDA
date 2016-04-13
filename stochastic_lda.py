@@ -1,12 +1,12 @@
 import sys, re, time, string, random, csv, argparse
 import numpy as n
-from scipy.special import gammaln, psi
+from scipy.special import psi
 from nltk.tokenize import wordpunct_tokenize
 from utilsold import *
 # import matplotlib.pyplot as plt
 
 n.random.seed(10000001)
-meanchangethresh = 1e-10
+meanchangethresh = 1e-3
 MAXITER = 10000
 
 
@@ -89,7 +89,15 @@ class SVILDA():
 		for i in range(self._iterations):
 			# print self._expElogbeta[:, 0], expElogtheta_d
 			for m, word in enumerate(newdoc):
-				phi_d[:, m] = n.dot(expElogtheta_d, self._expElogbeta[:, word])
+				# print expElogtheta_d
+				# print self._expElogbeta[:, words]
+				# phi_d[:, m] = n.diagonal(n.outer(expElogtheta_d, self._expElogbeta[:, word])) + 1e-100
+
+				for k in range(self._K):
+					phi_d[k, m] = expElogtheta_d[k]* self._expElogbeta[k, word] + 1e-100
+				phi_d[:, m] = phi_d[:, m]/n.sum(phi_d[:, m])					
+				# print phi_d[:, m]
+				# print phi_d[:, m.]
 			# print n.sum(phi_d, axis = 1)
 			# print phi_d
 			gamma_new = self._alpha + n.sum(phi_d, axis = 1)
@@ -148,7 +156,9 @@ class SVILDA():
 		prob_words = n.sum(self._lambda, axis = 0)
 		prob_topics = n.sum(self._lambda, axis = 1)
 		prob_topics = prob_topics/n.sum(prob_topics)
+		# print self._lambda[0]/sum(self._lambda[0])
 		print prob_topics
+
 
 		if docs == None:
 			docs = self._docs
@@ -181,16 +191,32 @@ def test(k, iterations):
 
 	finallambda = testset._lambda
 
-	with open("results.csv", "w+") as f:
-		writer = csv.writer(f)
-		for i in range(k):
-			bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
-			writer.writerow([i])
-			for k, word in enumerate(bestwords):
-				writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
-				if k >= 15:
-					break
+	# with open("results.csv", "w+") as f:
+	# 	writer = csv.writer(f)
+	# 	for i in range(k):
+	# 		bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
+	# 		# print bestwords
+	# 		bestwords.reverse()
+	# 		writer.writerow([i])
+	# 		for k, word in enumerate(bestwords):
+	# 			writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
+	# 			if k >= 15:
+	# 				break
 	topics = testset.getTopics()
+
+	testlambda = finallambda
+
+	for k in range(0, len(testlambda)):
+		lambdak = list(testlambda[k, :])
+		lambdak = lambdak / sum(lambdak)
+		temp = zip(lambdak, range(0, len(lambdak)))
+		temp = sorted(temp, key = lambda x: x[0], reverse=True)
+		# print temp
+		print 'topic %d:' % (k)
+		# feel free to change the "53" here to whatever fits your screen nicely.
+		for i in range(0, 10):
+			print '%20s  \t---\t  %.4f' % (vocab.keys()[vocab.values().index(temp[i][1])], temp[i][0])
+		print
 
 
 	# with open("raw.txt", "w+") as f:
