@@ -2,22 +2,24 @@ import sys, re, time, string, random, csv, argparse
 import numpy as n
 from scipy.special import gammaln, psi
 from nltk.tokenize import wordpunct_tokenize
-from utils import *
+from utilsold import *
 # import matplotlib.pyplot as plt
 
 n.random.seed(10000001)
-meanchangethresh = 1e-6
+meanchangethresh = 1e-10
 MAXITER = 10000
 
 
 def dirichlet_expectation(alpha):
 	'''see onlineldavb.py by Blei et al'''
-	if len(alpha.shape) == 1:
+	# print alpha.shape
+	if (len(alpha.shape) == 1):
 		return (psi(alpha) - psi(n.sum(alpha)))
-	return (psi(alpha) - psi(n.sum(alpha)))
+	# print (psi(alpha) - psi(n.sum(alpha, 1))[:, n.newaxis])
+	return (psi(alpha) - psi(n.sum(alpha, 1))[:, n.newaxis])
 
 
-def parseDocument(doc, vocab, vectorize = True):
+def parseDocument(doc, vocab):
 	wordslist = list()
 	countslist = list()
 	doc = doc.lower()
@@ -28,26 +30,13 @@ def parseDocument(doc, vocab, vectorize = True):
 		if word in vocab:
 			wordtk = vocab[word]
 			if wordtk not in dictionary:
-				dictionary[wordtk] = 0
+				dictionary[wordtk] = 1
 			else:
 				dictionary[wordtk] += 1
 
 	wordslist.append(dictionary.keys())
 	countslist.append(dictionary.values())
-	if vectorize == True: #returns words as binary vectors 
-		wordslistVectors = []
-
-		for word in wordslist[0]:
-			# print word
-			wordvector = n.zeros(len(vocab))
-			wordvector[word] = 1
-			# print wordvector.argmax()
-			wordslistVectors.append(wordvector)
-
-		return (wordslistVectors, countslist[0])
-
-	elif vectorize == False: #returns words with their id
-		return (wordslist[0], countslist[0])
+	return (wordslist[0], countslist[0])
 
 def getVocab(file):
 	'''getting vocab dictionary from a csv file (nostopwords)'''
@@ -89,7 +78,7 @@ class SVILDA():
 		# print words, counts
 		N_d = sum(counts)
 		phi_d = n.zeros((self._K, N_d))
-		gamma_d = n.ones(self._K)
+		gamma_d = n.random.gamma(100., 1./100., (self._K))
 		Elogtheta_d = dirichlet_expectation(gamma_d)
 		expElogtheta_d = n.exp(Elogtheta_d)
 		for i, item in enumerate(counts):
@@ -98,15 +87,13 @@ class SVILDA():
 		assert len(newdoc) == N_d, "error"
 
 		for i in range(self._iterations):
+			# print self._expElogbeta[:, 0], expElogtheta_d
 			for m, word in enumerate(newdoc):
-
-				for k in range(self._K):
-					# print m, k, expElogtheta_d[k]* self._expElogbeta[k][n.argmax(word)]
-					phi_d[k][m] = expElogtheta_d[k] * self._expElogbeta[k][n.argmax(word)]
+				phi_d[:, m] = n.dot(expElogtheta_d, self._expElogbeta[:, word])
 			# print n.sum(phi_d, axis = 1)
-
-			gamma_new = self._alpha + n.sum(phi_d, axis = 1)
 			# print phi_d
+			gamma_new = self._alpha + n.sum(phi_d, axis = 1)
+			# print self._alpha, gamma_new, gamma_d
 			meanchange = n.mean(abs(gamma_d - gamma_new))
 			if (meanchange < meanchangethresh):
 				break
@@ -115,6 +102,8 @@ class SVILDA():
 			Elogtheta_d = dirichlet_expectation(gamma_d)
 			expElogtheta_d = n.exp(Elogtheta_d)
 
+		# print gamma_new
+		# print N_d, phi_d
 		newdoc = n.asarray(newdoc)
 		return phi_d, newdoc
 
@@ -125,12 +114,14 @@ class SVILDA():
 			for k in range(self._K):
 				phi_dk = n.zeros(self._V)
 
-				for m in range(len(doc)):
-					phi_dk += phi_d[k][m] * doc[m] 
+				for m, word in enumerate(doc):
+					# print word
+					phi_dk[word] += phi_d[k][m] 
 
 				lambda_d[k] = self._eta + self._D * phi_dk
 			# print lambda_d
 			rho = (self.ct + self._tau) **(-self._kappa)
+			# print 'rho', rho
 			self._lambda = (1-rho) * self._lambda + rho * lambda_d
 			# print self._lambda
 			self._Elogbeta = dirichlet_expectation(self._lambda)
@@ -163,7 +154,7 @@ class SVILDA():
 			docs = self._docs
 		results = n.zeros((len(docs), self._K))
 		for i, doc in enumerate(docs):
-			parseddoc = parseDocument(doc, self._vocab, vectorize = False)
+			parseddoc = parseDocument(doc, self._vocab)
 
 			for j in range(self._K):
 				aux = [self._lambda[j][word]/prob_words[word] for word in parseddoc[0]]
@@ -174,26 +165,26 @@ class SVILDA():
 		finalresults = n.zeros(len(docs))
 		for k in range(len(docs)):
 			finalresults[k] = n.argmax(results[k])
-		print finalresults
+		# print finalresults
 		return finalresults
 
 			
 
 
 
-def test(k):
+def test(k, iterations):
 
 	allmydocs = getalldocs()
-	vocab = getVocab("dictionary.csv")
-	testset = SVILDA(vocab = vocab, K = k, D = 943, alpha = 0.2, eta = 0.2, tau = 1024, kappa = 0.7, docs = allmydocs, iterations= MAXITER)
+	vocab = getVocab("dictionary2.csv")
+	testset = SVILDA(vocab = vocab, K = k, D = 941, alpha = 0.2, eta = 0.2, tau = 1024, kappa = 0.7, docs = allmydocs, iterations= iterations)
 	testset.runSVI()
 
 	finallambda = testset._lambda
 
-	with open("results.csv", "a") as f:
+	with open("results.csv", "w+") as f:
 		writer = csv.writer(f)
 		for i in range(k):
-			bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i][j])
+			bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
 			writer.writerow([i])
 			for k, word in enumerate(bestwords):
 				writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
@@ -202,11 +193,10 @@ def test(k):
 	topics = testset.getTopics()
 
 
-	with open("raw.txt", "w+") as f:
-		# f.write(finallambda)
-		for result in topics:
-			f.write(str(result) + " \n")
-
+	# with open("raw.txt", "w+") as f:
+	# 	# f.write(finallambda)
+	# 	for result in topics:
+	# 		f.write(str(result) + " \n")
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -227,32 +217,27 @@ def main():
 	mode = str(args.mode)
 	vocab = str(args.vocab)
 	K = int(args.topics)
-	alpha = args.alpha
-	eta = args.eta
-	tau = args.tau
-	kappa = args.kappa
-	iterations = args.iterations
+	alpha = float(args.alpha)
+	eta = float(args.eta)
+	tau = float(args.tau)
+	kappa = float(args.kappa)
+	iterations = int(args.iterations)
+	docs = str(args.docs)
+	vocab = str(args.vocab)
 
 	if mode == "test":
-		test(K)
+		test(K, iterations)
 	if mode == "normal":
-		assert vocabfile is not None, "no vocab"
+		assert vocab is not None, "no vocab"
 		assert docs is not None, "no docs"
 		D = len(docs)
 		docs = getalldocs(docs)
-		vocab = getVocab(vocabfile)
+		vocab = getVocab(vocab)
 		lda = SVILDA(vocab = vocab, K = K, D = D, alpha = alpha, eta = eta, tau = tau, kappa = kappa, docs = docs, iterations = iterations)
 		lda.runSVI()
 
-		return lda #returns SVILDA class
-
-
-
-	
-
+		return lda 
 
 
 if __name__ == '__main__':
 	main()
-
-		
