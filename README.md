@@ -1,7 +1,7 @@
 
 ##Stochastic Variational Inference for Latent Dirichlet Allocation
 
-Code structure based on the OnlineVB code provided by Matthew D. Hoffman (mdhoffma@cs.princeton.edu) and the algorithm described in Hoffman's paper Stochastic Variational Inference
+Code structure from the OnlineVB code provided by Matthew D. Hoffman (mdhoffma@cs.princeton.edu) and the algorithm is as described in Hoffman's paper below
 
 Based on the following papers:
 - [Latent Dirichlet Allocation](https://www.cs.princeton.edu/~blei/papers/BleiNgJordan2003.pdf) by David M. Blei, Andrew Y. Ng and Michael I. Jordan
