@@ -12,10 +12,8 @@ MAXITER = 10000
 
 def dirichlet_expectation(alpha):
 	'''see onlineldavb.py by Blei et al'''
-	# print alpha.shape
 	if (len(alpha.shape) == 1):
 		return (psi(alpha) - psi(n.sum(alpha)))
-	# print (psi(alpha) - psi(n.sum(alpha, 1))[:, n.newaxis])
 	return (psi(alpha) - psi(n.sum(alpha, 1))[:, n.newaxis])
 
 
@@ -59,7 +57,6 @@ class SVILDA():
 		self._eta = eta
 		self._tau = tau
 		self._kappa = kappa
-		# self._updatect = 0
 		self._lambda = 1* n.random.gamma(100., 1./100., (self._K, self._V))
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
@@ -71,11 +68,8 @@ class SVILDA():
 
 
 	def updateLocal(self, doc): #word_dn is an indicator variable with dimension V
-		# print "updating local parameters"
 		(words, counts) = doc
-		# print len(words), len(counts)
 		newdoc = []
-		# print words, counts
 		N_d = sum(counts)
 		phi_d = n.zeros((self._K, N_d))
 		gamma_d = n.random.gamma(100., 1./100., (self._K))
@@ -87,21 +81,12 @@ class SVILDA():
 		assert len(newdoc) == N_d, "error"
 
 		for i in range(self._iterations):
-			# print self._expElogbeta[:, 0], expElogtheta_d
 			for m, word in enumerate(newdoc):
-				# print expElogtheta_d
-				# print self._expElogbeta[:, words]
-				# phi_d[:, m] = n.diagonal(n.outer(expElogtheta_d, self._expElogbeta[:, word])) + 1e-100
+s]
+				phi_d[:, m] = n.multiply(expElogtheta_d, self._expElogbeta[:, word]) + 1e-100
+				phi_d[:, m] = phi_d[:, m]/n.sum(phi_d[:, m])
 
-				for k in range(self._K):
-					phi_d[k, m] = expElogtheta_d[k]* self._expElogbeta[k, word] + 1e-100
-				phi_d[:, m] = phi_d[:, m]/n.sum(phi_d[:, m])					
-				# print phi_d[:, m]
-				# print phi_d[:, m.]
-			# print n.sum(phi_d, axis = 1)
-			# print phi_d
 			gamma_new = self._alpha + n.sum(phi_d, axis = 1)
-			# print self._alpha, gamma_new, gamma_d
 			meanchange = n.mean(abs(gamma_d - gamma_new))
 			if (meanchange < meanchangethresh):
 				break
@@ -110,8 +95,6 @@ class SVILDA():
 			Elogtheta_d = dirichlet_expectation(gamma_d)
 			expElogtheta_d = n.exp(Elogtheta_d)
 
-		# print gamma_new
-		# print N_d, phi_d
 		newdoc = n.asarray(newdoc)
 		return phi_d, newdoc
 
@@ -127,11 +110,8 @@ class SVILDA():
 					phi_dk[word] += phi_d[k][m] 
 
 				lambda_d[k] = self._eta + self._D * phi_dk
-			# print lambda_d
 			rho = (self.ct + self._tau) **(-self._kappa)
-			# print 'rho', rho
 			self._lambda = (1-rho) * self._lambda + rho * lambda_d
-			# print self._lambda
 			self._Elogbeta = dirichlet_expectation(self._lambda)
 			self._expElogbeta = n.exp(self._Elogbeta)
 
@@ -147,16 +127,12 @@ class SVILDA():
 				phi_doc, newdoc = self.updateLocal(doc)
 				self.updateGlobal(phi_doc, newdoc)
 				self.ct += 1
-			# if self._parsed == True:
-			# 	doc = self._docs[0][randint]
-
 
 
 	def getTopics(self, docs = None):
 		prob_words = n.sum(self._lambda, axis = 0)
 		prob_topics = n.sum(self._lambda, axis = 1)
 		prob_topics = prob_topics/n.sum(prob_topics)
-		# print self._lambda[0]/sum(self._lambda[0])
 		print prob_topics
 
 
@@ -168,15 +144,12 @@ class SVILDA():
 
 			for j in range(self._K):
 				aux = [self._lambda[j][word]/prob_words[word] for word in parseddoc[0]]
-				# print aux
 				doc_probability = [n.log(aux[k]) * parseddoc[1][k] for k in range(len(aux))]
-				# print doc_probability
 				results[i][j] = sum(doc_probability) + n.log(prob_topics[j])
 		finalresults = n.zeros(len(docs))
 		for k in range(len(docs)):
 			finalresults[k] = n.argmax(results[k])
-		# print finalresults
-		return finalresults
+		return finalresults, prob_topics
 
 			
 
@@ -191,18 +164,18 @@ def test(k, iterations):
 
 	finallambda = testset._lambda
 
-	# with open("results.csv", "w+") as f:
-	# 	writer = csv.writer(f)
-	# 	for i in range(k):
-	# 		bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
-	# 		# print bestwords
-	# 		bestwords.reverse()
-	# 		writer.writerow([i])
-	# 		for k, word in enumerate(bestwords):
-	# 			writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
-	# 			if k >= 15:
-	# 				break
-	topics = testset.getTopics()
+	with open("temp/results.csv", "w+") as f:
+		writer = csv.writer(f)
+	 	for i in range(k):
+	 		bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
+	 		# print bestwords
+	 		bestwords.reverse()
+	 		writer.writerow([i])
+	 		for k, word in enumerate(bestwords):
+	 			writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
+	 			if k >= 15:
+	 				break
+	topics, topic_probs = testset.getTopics()
 
 	testlambda = finallambda
 
@@ -219,10 +192,11 @@ def test(k, iterations):
 		print
 
 
-	# with open("raw.txt", "w+") as f:
-	# 	# f.write(finallambda)
-	# 	for result in topics:
-	# 		f.write(str(result) + " \n")
+	 with open("tmp/raw.txt", "w+") as f:
+	 	# f.write(finallambda)
+	 	for result in topics:
+	 		f.write(str(result) + " \n")
+		f.write(str(topic_probs) + " \n")
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -238,7 +212,6 @@ def main():
 	
 	args = parser.parse_args()
 
-	#print args.output
 
 	mode = str(args.mode)
 	vocab = str(args.vocab)
