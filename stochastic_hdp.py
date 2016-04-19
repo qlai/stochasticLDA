@@ -2,7 +2,7 @@ import sys, re, time, string, random, csv, argparse
 import numpy as n
 from scipy.special import psi
 from nltk.tokenize import wordpunct_tokenize
-from utilsold import *
+from utils import *
 # import matplotlib.pyplot as plt
 
 n.random.seed(10000001)
@@ -61,9 +61,12 @@ class SVIHDP():
 					phi_aux += xi_d[j, k] * self._Elogbeta[k, newdoc[i]]
 				phi_d = n.exp(phi_aux)
 
+		gamma_a_old = n.random.gamma(100., 1./100., (self._T))
+		gamma_b_old = n.random.gamma(100., 1./100., (self._T))
 		gamma_a = n.zeros(self._T)
 		gamma_b = n.zeros(self._T)
 
+		#run iterations
 		for i in range(self._iterations):
 			for j in range(self._T):
 				gamma_a[j] = 1 + n.sum(phi_d[:, j])
@@ -83,24 +86,39 @@ class SVIHDP():
 						xibeta_aux[nn] = xi_d[k, nn]*self._Elogbeta[nn, newdoc[j]]
 					phi_d[j, k] = n.exp(phi_aux[k]) + n.sum(xibeta_aux)
 
-			'''need breaking condition'''
+			meanchange = n.mean(abs(gamma_b_old - gamma_b)) + n.mean(abs(gamma_a_old - gamma_a))
+			if meanchange < meanchangethresh:
+				break
+			gamma_a_old = gamma_a
+			gamma_b_old = gamma_b
 
-		return xi_d, phi_d
+		return xi_d, phi_d, newdoc
 
 	def updateGlobal(self, xi, phi, doc):
 		#set intermediae param
-		lambda_new = n.zeros(self._K)
+		lambda_new = n.zeros(self._K, self._V)
 		a_new = n.zeros(self._K)
 		b_new = n.zeros(self._K)
 
+		#compute intermediate topics
 		for k in range(self._K):
-			for m, word in enumerate(doc):
+			xi_aux_lambda = 0.
 
-			lambda_new = self._eta + self._D *
-'''finish updates for a and b and lambda'''
+			for t in range(self._T):
+				phi_dt = n.zeros(self._V)
+				for m, word in enumerate(doc):
+					phi_dt[word] += phi[m, t]
+				xi_aux_lambda += phi_dt * xi[t, k]
 
+			lambda_new[k, :] = self._eta + self._D * xi_aux_lambda
+			a_new[k] = n.sum(xi[:, k])
+			b_new[k] = n.sum(xi[:, k+1:self._K])
+
+		#set rho 
 		rho = (self.ct + self._tau) **(-self._kappa)
-		self._lambda = (1-rho) * self._lambda + rho * lambda_d
+
+		#update
+		self._lambda = (1-rho) * self._lambda + rho * lambda_new
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
 		self._a = (1-rho) * self._a + rho * a_new
@@ -108,3 +126,12 @@ class SVIHDP():
 
 
 	def runHDP(self):
+		for it in range(self._iterations):
+			randint = random.randint(0, self._D-1)
+			print "ITERATION ", it, " running doc number ", randint
+			doc = parseDocument(self._docs[randint], self._vocab)
+			xi, phi, newdoc = self.updateLocal(doc)
+			self.updateGlobal(xi, phi, newdoc)
+			self.ct += 1
+
+

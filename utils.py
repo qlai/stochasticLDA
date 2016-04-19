@@ -46,7 +46,7 @@ def dirichlet_expectation(alpha):
 		return (psi(alpha) - psi(n.sum(alpha)))
 	return (psi(alpha) - psi(n.sum(alpha, 1))[:, n.newaxis])
 
-def beta_expectation(V, a, b, k):
+def beta_expectation(a, b, k):
 	Elog_a = psi(a) - psi(a + b)
 	Elog_b = psi(b) - psi(b + a)
 	Elog_sig = n.zeros(k)
