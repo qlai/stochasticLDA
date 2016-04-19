@@ -30,8 +30,8 @@ class SVIHDP():
 		self._iterations = iterations
 		self._parsed = parsed
 
-		self._a = 1
-		self._b = self._omega
+		self._a = n.ones(self._K)
+		self._b = n.ones(self._K) + self._omega
 		# print self._lambda.shape
 
 	def updateLocal(self, doc):
