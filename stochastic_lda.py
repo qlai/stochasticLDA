@@ -2,49 +2,13 @@ import sys, re, time, string, random, csv, argparse
 import numpy as n
 from scipy.special import psi
 from nltk.tokenize import wordpunct_tokenize
-from utilsold import *
+from utils import *
 # import matplotlib.pyplot as plt
 
 n.random.seed(10000001)
 meanchangethresh = 1e-3
 MAXITER = 10000
 
-
-def dirichlet_expectation(alpha):
-	'''see onlineldavb.py by Blei et al'''
-	if (len(alpha.shape) == 1):
-		return (psi(alpha) - psi(n.sum(alpha)))
-	return (psi(alpha) - psi(n.sum(alpha, 1))[:, n.newaxis])
-
-
-def parseDocument(doc, vocab):
-	wordslist = list()
-	countslist = list()
-	doc = doc.lower()
-	tokens = wordpunct_tokenize(doc)
-
-	dictionary = dict()
-	for word in tokens:
-		if word in vocab:
-			wordtk = vocab[word]
-			if wordtk not in dictionary:
-				dictionary[wordtk] = 1
-			else:
-				dictionary[wordtk] += 1
-
-	wordslist.append(dictionary.keys())
-	countslist.append(dictionary.values())
-	return (wordslist[0], countslist[0])
-
-def getVocab(file):
-	'''getting vocab dictionary from a csv file (nostopwords)'''
-	vocab = dict()
-	with open(file, 'r') as infile:
-		reader = csv.reader(infile)
-		for index, row in enumerate(reader):
-			vocab[row[0]] = index
-
-	return vocab
 
 
 class SVILDA():
@@ -100,20 +64,18 @@ s]
 
 	def updateGlobal(self, phi_d, doc):
 			# print 'updating global parameters'
-			lambda_d = n.zeros((self._K, self._V))
+		lambda_d = n.zeros((self._K, self._V))
 
-			for k in range(self._K):
-				phi_dk = n.zeros(self._V)
-
-				for m, word in enumerate(doc):
+		for k in range(self._K):
+			phi_dk = n.zeros(self._V)
+			for m, word in enumerate(doc):
 					# print word
-					phi_dk[word] += phi_d[k][m] 
-
-				lambda_d[k] = self._eta + self._D * phi_dk
-			rho = (self.ct + self._tau) **(-self._kappa)
-			self._lambda = (1-rho) * self._lambda + rho * lambda_d
-			self._Elogbeta = dirichlet_expectation(self._lambda)
-			self._expElogbeta = n.exp(self._Elogbeta)
+				phi_dk[word] += phi_d[k][m] 
+			lambda_d[k] = self._eta + self._D * phi_dk
+		rho = (self.ct + self._tau) **(-self._kappa)
+		self._lambda = (1-rho) * self._lambda + rho * lambda_d
+		self._Elogbeta = dirichlet_expectation(self._lambda)
+		self._expElogbeta = n.exp(self._Elogbeta)
 
 	
 	
