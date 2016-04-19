@@ -111,8 +111,8 @@ class SVIHDP():
 				xi_aux_lambda += phi_dt * xi[t, k]
 
 			lambda_new[k, :] = self._eta + self._D * xi_aux_lambda
-			a_new[k] = n.sum(xi[:, k])
-			b_new[k] = n.sum(xi[:, k+1:self._K])
+			a_new[k] = 1 + self._D * n.sum(xi[:, k])
+			b_new[k] = self._omega + self._D* n.sum(xi[:, k+1:self._K])
 
 		#set rho 
 		rho = (self.ct + self._tau) **(-self._kappa)
