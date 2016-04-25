@@ -29,6 +29,10 @@ class SVILDA():
 		self._iterations = iterations
 		self._parsed = parsed
 		print self._lambda.shape
+		self._trace_lambda = {}
+		for i in range(self._K):
+			self._trace_lambda[i] = [self.computeProbabilities()[i]]
+		self._x = [0]
 
 
 	def updateLocal(self, doc): #word_dn is an indicator variable with dimension V
@@ -46,7 +50,6 @@ class SVILDA():
 
 		for i in range(self._iterations):
 			for m, word in enumerate(newdoc):
-s]
 				phi_d[:, m] = n.multiply(expElogtheta_d, self._expElogbeta[:, word]) + 1e-100
 				phi_d[:, m] = phi_d[:, m]/n.sum(phi_d[:, m])
 
@@ -60,7 +63,7 @@ s]
 			expElogtheta_d = n.exp(Elogtheta_d)
 
 		newdoc = n.asarray(newdoc)
-		return phi_d, newdoc
+		return phi_d, newdoc, gamma_d
 
 	def updateGlobal(self, phi_d, doc):
 			# print 'updating global parameters'
@@ -77,6 +80,11 @@ s]
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
 
+		if self.ct % 10 == 9:
+			for i in range(self._K):
+				self._trace_lambda[i].append(self.computeProbabilities()[i])
+			self._x.append(self.ct)
+
 	
 	
 	def runSVI(self):
@@ -86,17 +94,20 @@ s]
 			print "ITERATION", i, " running document number ", randint
 			if self._parsed == False:
 				doc = parseDocument(self._docs[randint],self._vocab)
-				phi_doc, newdoc = self.updateLocal(doc)
+				phi_doc, newdoc, gamma_d = self.updateLocal(doc)
 				self.updateGlobal(phi_doc, newdoc)
 				self.ct += 1
 
 
-	def getTopics(self, docs = None):
-		prob_words = n.sum(self._lambda, axis = 0)
+	def computeProbabilities(self):
+
 		prob_topics = n.sum(self._lambda, axis = 1)
 		prob_topics = prob_topics/n.sum(prob_topics)
-		print prob_topics
+		return prob_topics
 
+	def getTopics(self, docs = None):
+		prob_topics = self.computeProbabilities()
+		prob_words = n.sum(self._lambda, axis = 0)
 
 		if docs == None:
 			docs = self._docs
@@ -113,51 +124,79 @@ s]
 			finalresults[k] = n.argmax(results[k])
 		return finalresults, prob_topics
 
+	def calcPerplexity(self, docs = None):
+		perplexity = 0.
+		doclen = 0.
+		if docs == None:
+			docs =  self._docs
+		for doc in docs:
+			parseddoc = parseDocument(doc, self._vocab)
+			_, newdoc, gamma_d = self.updateLocal(parseddoc)
+			approx_mixture = n.dot(gamma_d, self._lambda)
+			# print n.shape(approx_mixture)
+			approx_mixture = approx_mixture / n.sum(approx_mixture)
+			log_doc_prob = 0.
+			for word in newdoc:
+				log_doc_prob += n.log(approx_mixture[word])
+			perplexity += log_doc_prob
+			doclen += len(newdoc)
+			# print perplexity, doclen
+		perplexity = n.exp( - perplexity / doclen)
+		print perplexity
+		return perplexity
+
+	def plotTopics(self, perp):
+		plottrace(self._x, self._trace_lambda, self._K, self._iterations, perp)
+			
+
 			
 
 
 
 def test(k, iterations):
 
-	allmydocs = getalldocs()
+	allmydocs = getalldocs("alldocs2.txt")
 	vocab = getVocab("dictionary2.csv")
-	testset = SVILDA(vocab = vocab, K = k, D = 941, alpha = 0.2, eta = 0.2, tau = 1024, kappa = 0.7, docs = allmydocs, iterations= iterations)
+	testset = SVILDA(vocab = vocab, K = k, D = 847, alpha = 0.2, eta = 0.2, tau = 1024, kappa = 0.7, docs = allmydocs, iterations= iterations)
 	testset.runSVI()
 
 	finallambda = testset._lambda
+	
+	heldoutdocs = getalldocs("testdocs.txt")
 
-	with open("temp/results.csv", "w+") as f:
+	perplexity = testset.calcPerplexity(docs = heldoutdocs)
+
+	with open("temp/%i_%i_%f_results.csv" %(k, iterations, perplexity), "w+") as f:
 		writer = csv.writer(f)
-	 	for i in range(k):
-	 		bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
-	 		# print bestwords
-	 		bestwords.reverse()
-	 		writer.writerow([i])
-	 		for k, word in enumerate(bestwords):
-	 			writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
-	 			if k >= 15:
-	 				break
+		for i in range(k):
+			bestwords = sorted(range(len(finallambda[i])), key=lambda j:finallambda[i, j])
+			# print bestwords
+			bestwords.reverse()
+			writer.writerow([i])
+			for j, word in enumerate(bestwords):
+				writer.writerow([word, vocab.keys()[vocab.values().index(word)]])
+				if j >= 15:
+					break
 	topics, topic_probs = testset.getTopics()
+	testset.plotTopics(perplexity)
 
-	testlambda = finallambda
-
-	for k in range(0, len(testlambda)):
-		lambdak = list(testlambda[k, :])
+	for kk in range(0, len(finallambda)):
+		lambdak = list(finallambda[kk, :])
 		lambdak = lambdak / sum(lambdak)
 		temp = zip(lambdak, range(0, len(lambdak)))
 		temp = sorted(temp, key = lambda x: x[0], reverse=True)
 		# print temp
-		print 'topic %d:' % (k)
+		print 'topic %d:' % (kk)
 		# feel free to change the "53" here to whatever fits your screen nicely.
 		for i in range(0, 10):
 			print '%20s  \t---\t  %.4f' % (vocab.keys()[vocab.values().index(temp[i][1])], temp[i][0])
 		print
 
 
-	 with open("tmp/raw.txt", "w+") as f:
-	 	# f.write(finallambda)
-	 	for result in topics:
-	 		f.write(str(result) + " \n")
+	with open("temp/%i_%i_%f_raw.txt" %(k, iterations, perplexity), "w+") as f:
+		# f.write(finallambda)
+		for result in topics:
+			f.write(str(result) + " \n")
 		f.write(str(topic_probs) + " \n")
 
 def main():

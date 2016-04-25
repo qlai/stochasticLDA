@@ -28,7 +28,6 @@ class SVIHDP():
 		self._docs = docs
 		self.ct = 0
 		self._iterations = iterations
-		self._parsed = parsed
 
 		self._a = n.ones(self._K)
 		self._b = n.ones(self._K) * self._omega
@@ -47,10 +46,17 @@ class SVIHDP():
 		xi_d = n.zeros((self._T, self._K))
 		for i in range(self._T):
 			for j in range(self._K):
-				xi_aux = 0.
+				xi_aux = 1.
 				for k in range(N_d):
-					xi_aux += self._Elogbeta[j, newdoc[k]]
+					print "hello"
+					xi_aux *= self._expElogbeta[j, newdoc[k]]
+					print xi_aux
 				xi_d[i, j] = n.exp(xi_aux)
+		print xi_d,  ",,,,,,"
+		xi_normalizer = n.sum(xi_d, axis = 1)
+		print xi_normalizer
+		xi_d = xi_d/xi_normalizer
+		print xi_d, "!!!"
 
 		#init phi
 		phi_d = n.zeros((N_d, self._T))
@@ -59,16 +65,23 @@ class SVIHDP():
 				phi_aux = 0.
 				for k in range(self._K):
 					phi_aux += xi_d[j, k] * self._Elogbeta[k, newdoc[i]]
-				phi_d = n.exp(phi_aux)
+				phi_d[i, j] = n.exp(phi_aux)
+		print phi_d, "...."
+		phi_normalizer = n.sum(phi_d, axis = 1)
+		print phi_normalizer, ".......ssss"
+		phi_d = n.divide(phi_d, phi_normalizer)
 
 		gamma_a_old = n.random.gamma(100., 1./100., (self._T))
 		gamma_b_old = n.random.gamma(100., 1./100., (self._T))
 		gamma_a = n.zeros(self._T)
 		gamma_b = n.zeros(self._T)
 
+
+
 		#run iterations
 		for i in range(self._iterations):
 			for j in range(self._T):
+				# print phi_d[:, j]
 				gamma_a[j] = 1 + n.sum(phi_d[:, j])
 				gamma_b[j] = self._alpha + n.sum(phi_d[:, j+1:])
 				xi_aux = beta_expectation(self._a, self._b, self._K)
@@ -96,7 +109,7 @@ class SVIHDP():
 
 	def updateGlobal(self, xi, phi, doc):
 		#set intermediae param
-		lambda_new = n.zeros(self._K, self._V)
+		lambda_new = n.zeros((self._K, self._V))
 		a_new = n.zeros(self._K)
 		b_new = n.zeros(self._K)
 
@@ -116,9 +129,11 @@ class SVIHDP():
 
 		#set rho 
 		rho = (self.ct + self._tau) **(-self._kappa)
-
+		print lambda_new
+		print rho
 		#update
 		self._lambda = (1-rho) * self._lambda + rho * lambda_new
+		print self._lambda
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
 		self._a = (1-rho) * self._a + rho * a_new
@@ -134,4 +149,14 @@ class SVIHDP():
 			self.updateGlobal(xi, phi, newdoc)
 			self.ct += 1
 
+		print self._lambda
 
+
+def test():
+	alldocs = getalldocs()
+	vocab = getVocab("dictionary2.csv")
+	test_set = SVIHDP(vocab = vocab, K = 20, D = 941, T = 20, alpha = 1, eta = 0.2, omega = 1, tau = 1024, kappa = 0.7, docs = alldocs, iterations = 5)
+	test_set.runHDP()
+
+
+test()

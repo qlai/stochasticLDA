@@ -2,15 +2,18 @@ import sys, csv
 from nltk.tokenize import wordpunct_tokenize
 from scipy.special import psi
 import numpy as n
+import matplotlib.pyplot as plt
 
 LISTOFDOCS = "alldocs.txt"
 
 
 filenames = []
 
-def get_filenames():
+def get_filenames(filename):
 	print "getting filenames"
-	with open(LISTOFDOCS, 'r') as f:
+	if filename == None:
+		filename = LISTOFDOCS
+	with open(filename, 'r') as f:
 		docs = f.readlines()
 
 		for doc in docs:
@@ -28,8 +31,8 @@ def getfiles(filename):
 	return doc
 
 
-def getalldocs():
-	files = get_filenames()
+def getalldocs(filename = None):
+	files = get_filenames(filename)
 	docs = []
 	for file in files:
 		doc = getfiles(file)
@@ -85,6 +88,19 @@ def getVocab(file):
 	return vocab
 
 
+def plottrace(x, Y, K, n, perp):
+	for i in range(K):
+		plt.plot(x, Y[i], label = "Topic %i" %(i+1))
+
+	plt.xlabel("Number of Iterations")
+	plt.ylabel("Probability of Each topic")
+	plt.legend()
+	plt.title("Trace plot for topic probabilities")
+	plt.savefig("temp/plot_%i_%i_%f.png" %(K, n, perp))
+# 
+# 
+# def calcPerplexity(test_docs):
+	
 
 
 # getalldocs()
