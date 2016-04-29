@@ -2,4 +2,4 @@ all/
 dictionary.csv
 pr*.py
 *.pyc
-
+*.py~
