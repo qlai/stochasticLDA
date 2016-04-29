@@ -55,11 +55,8 @@ def beta_expectation(a, b, k):
 	Elog_b = psi(b) - mysum
 	Elog_beta = n.zeros(k)
 	Elog_beta[0] = Elog_a[0]
-	# print Elog_beta
 	for i in range(1, k):
 		Elog_beta[i] = Elog_a[i] + n.sum(Elog_b[0:i])
-		# print Elog_beta
-	# print Elog_beta
 	return Elog_beta
 
 
