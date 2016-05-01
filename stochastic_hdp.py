@@ -25,14 +25,11 @@ class SVIHDP():
 		self._lambda = 1* n.random.gamma(100., 1./100., (self._K, self._V))
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
-		# print self._expElogbeta
 		self._docs = docs
 		self.ct = 0
 		self._iterations = iterations
-
 		self._a = n.ones(self._K)
 		self._b = n.ones(self._K) * self._omega
-		# print self._lambda.shape
 
 	def updateLocal(self, doc):
 		(words, counts) = doc
@@ -42,70 +39,35 @@ class SVIHDP():
 			for j in range(item):
 				newdoc.append(words[i])
 		assert len(newdoc) == N_d, "error"
-
-		#init xi
-		# xi_d = n.zeros((self._T, self._K))
-		# for i in range(self._T):
-		# 	for j in range(self._K):
-		# 		xi_aux = 0.
-		# 		# print i, j, 'hello'
-		# 		for k in range(N_d):
-		# 			xi_aux += self._expElogbeta[j, newdoc[k]]
-		# 			# print xi_aux
-		# 		xi_d[i, j] = n.exp(xi_aux)
-		# # print xi_d
-		# phi_d = n.zeros((N_d, self._T))
-		# for i in range(N_d):
-		# 	for j in range(self._T):
-		# 		phi_aux = 0.
-		# 		for k in range(self._K):
-		# 			# print xi_d[j, k], self._Elogbeta[k, newdoc[i]]
-		# 			phi_aux += xi_d[j, k] * self._Elogbeta[k, newdoc[i]]
-		# 		# print phi_aux
-		# 		phi_d[i, j] = n.exp(phi_aux)
-		# # print phi_d
-
-		xi_dd = n.zeros((self._T, self._K, N_d))
+		xi_dd = n.zeros((self._K, N_d))
 		phi_dd = n.zeros((self._T, self._K, N_d))
+		xi_d = n.zeros((self._T, self._K))
 
-		# print xi_dd
-		# print phi_dd
-
-		#init
 		for i in range(self._T):
 			for k in range(self._K):
 				for nn in range(N_d):
-					xi_dd[i, k, nn] = self._Elogbeta[k, newdoc[nn]]
-		# print xi_dd
-		# print n.sum(xi_dd, axis = 2)
-		xi_d = n.exp(n.sum(xi_dd, axis = 2)/100)
-		# print xi_d.shape
-		# print xi_d
-
-		for i in range(self._T):
+					xi_dd[k, nn] = self._Elogbeta[k, newdoc[nn]]
+			xi_d[i] = n.exp(n.sum(xi_dd, axis = 1))
 			for k in range(self._K):
 				for nn in range(N_d):
 					phi_dd[i, k, nn] = xi_d[i, k] * self._Elogbeta[k, newdoc[nn]]
 
 
 		phi_d= n.exp(n.sum(phi_dd, axis = 1)) 
-		# print phi_d.shape, phi_d
 
 		gamma_a_old = n.random.gamma(100., 1./100., (self._T))
 		gamma_b_old = n.random.gamma(100., 1./100., (self._T))
 		gamma_a = n.zeros(self._T)
 		gamma_b = n.zeros(self._T)
 
-
-
 		#run iterations
 		for i in range(self._iterations):
-
 			phi_d_aux = n.zeros((self._T, N_d))
+
 			for i in range(self._T-1):
 				for nn in range(N_d):
-					# print phi_d[i+1:self._T, nn]
 					phi_d_aux[i, nn] = n.sum(phi_d[i+1:self._T, nn], 0)
+
 			xi_aux = beta_expectation(self._a, self._b, self._K)
 
 			for i in range(self._T):
@@ -114,9 +76,9 @@ class SVIHDP():
 
 				for k in range(self._K):
 					for nn in range(N_d):
-						xi_dd[i, k, nn] = phi_d[i, nn] * self._Elogbeta[k, newdoc[nn]]
-					
-					xi_d[i, k] = n.exp(xi_aux[k]+n.sum(xi_dd[i][k]))
+						xi_dd[k, nn] = phi_d[i, nn] * self._Elogbeta[k, newdoc[nn]]
+					xi_d[i, k] = n.exp(xi_aux[k]+n.sum(xi_dd[k]))
+
 
 			phi_aux = beta_expectation(gamma_a, gamma_b, self._T)
 			for i in range(self._T):
@@ -138,6 +100,7 @@ class SVIHDP():
 		a_new = n.zeros(self._K)
 		b_new = n.zeros(self._K)
 		b_aux = n.zeros((self._T, self._K))
+
 		#compute intermediate topics
 		for k in range(self._K):
 			lambda_aux = n.zeros((self._T,self._V))
@@ -148,17 +111,14 @@ class SVIHDP():
 			a_new = 1 + self._D * n.sum(xi[:, k])
 			if k < self._K - 1:
 				b_aux[i, k] = n.sum(xi[i, k+1:self._K])
-			# print n.sum(b_aux, 0)
 			b_new = self._omega + self._D * n.sum(b_aux, 0)
 
 
 		#set rho 
 		rho = (self.ct + self._tau) **(-self._kappa)
-		# print lambda_new
-		# print rho
+
 		#update
 		self._lambda = (1-rho) * self._lambda + rho * lambda_new
-		# print self._lambda
 		self._Elogbeta = dirichlet_expectation(self._lambda)
 		self._expElogbeta = n.exp(self._Elogbeta)
 		self._a = (1-rho) * self._a + rho * a_new
@@ -173,10 +133,6 @@ class SVIHDP():
 			xi, phi, newdoc = self.updateLocal(doc)
 			self.updateGlobal(xi, phi, newdoc)
 			self.ct += 1
-
-		# print self._lambda
-		# print n.shape(self._lambda)
-
 
 	def computeProbabilities(self):
 
@@ -215,11 +171,12 @@ class SVIHDP():
 def test():
 	alldocs = getalldocs()
 	vocab = getVocab("dictionary2.csv")
-	test_set = SVIHDP(vocab = vocab, K = 5, D = 970, T = 5, alpha = 1, eta = 0.2, omega = 1, tau = 1024, kappa = 0.7, docs = alldocs, iterations = 100)
+	test_set = SVIHDP(vocab = vocab, K = 5, D = 970, T = 5, alpha = 1, eta = 0.2, omega = 1, tau = 1024, kappa = 0.7, docs = alldocs, iterations = 1)
 	test_set.runHDP()
 	test_set.computeProbabilities()
 
 	testlambda = test_set._lambda
+	print testlambda
 	for k in range(0, len(testlambda)):
 		lambdak = list(testlambda[k, :])
 		lambdak = lambdak / sum(lambdak)
