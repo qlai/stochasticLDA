@@ -157,7 +157,7 @@ def test(k, iterations):
 
 	allmydocs = getalldocs("alldocs2.txt")
 	vocab = getVocab("dictionary2.csv")
-	testset = SVILDA(vocab = vocab, K = k, D = 847, alpha = 0.2, eta = 0.2, tau = 1024, kappa = 0.7, docs = allmydocs, iterations= iterations)
+	testset = SVILDA(vocab = vocab, K = k, D = 847, alpha = 0.2, eta = 0.2, tau = 0.7, kappa = 1024, docs = allmydocs, iterations= iterations)
 	testset.runSVI()
 
 	finallambda = testset._lambda
@@ -207,8 +207,8 @@ def main():
 	parser.add_argument('-d','--docs', help='file with list of docs, .txt', default = "alldocs.txt", required=False)
 	parser.add_argument('-a','--alpha', help='alpha parameter, defaults to 0.2',default = 0.2, required=False)
 	parser.add_argument('-e','--eta', help='eta parameter, defaults to 0.2',default= 0.2, required=False)
-	parser.add_argument('-t','--tau', help='tau parameter, defaults to 0.7',default= 0.7, required=False)
-	parser.add_argument('-k','--kappa', help='kappa parameter, defaults to 1024',default = 1024, required=False)
+	parser.add_argument('-t','--tau', help='tau parameter (delay), defaults to 1024',default= 1024, required=False)
+	parser.add_argument('-k','--kappa', help='kappa (forgetting rate), defaults to 0.7',default = 0.7, required=False)
 	parser.add_argument('-n','--iterations', help='number of iterations, defaults to 10000',default = 10000, required=False)
 	
 	args = parser.parse_args()
